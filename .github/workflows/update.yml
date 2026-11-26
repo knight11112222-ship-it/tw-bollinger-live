@@ -1,1 +1,51 @@
-Update Real Taiwan Stock Bollinger Data
+name: Update Real Taiwan Stock Bollinger Data
+
+on:
+  schedule:
+    - cron: '35 1 * * 1-5'
+    - cron: '5,35 2-5 * * 1-5'
+    - cron: '15 7 * * 1-5'
+    - cron: '35 8 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else pip install requests pandas numpy yfinance tzdata; fi
+
+      - name: Fetch real TWSE TPEx FinMind yfinance data
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+        run: |
+          python update_data.py
+
+      - name: Commit and push data.json if updated
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          if [ -f data.json ]; then
+            git add data.json
+            if ! git diff --cached --quiet; then
+              TZ=Asia/Taipei git commit -m "chore: update real TW stock data"
+              git push
+            else
+              echo "No changes in data.json"
+            fi
+          fi
